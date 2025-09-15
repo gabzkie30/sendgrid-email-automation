@@ -6,6 +6,7 @@ from plotly.subplots import make_subplots
 import io
 from datetime import datetime, timedelta
 
+
 # Page configuration
 st.set_page_config(
     page_title="SendGrid Analytics Dashboard",
@@ -13,6 +14,10 @@ st.set_page_config(
     layout="wide",
     initial_sidebar_state="expanded"
 )
+
+# === 1 GB upload/message limits ===
+st.set_option("server.maxUploadSize", 1024)   # MB → 1 GB
+st.set_option("server.maxMessageSize", 1024)  # bump message size too
 
 # Custom CSS for better styling
 st.markdown("""
@@ -60,7 +65,13 @@ with st.sidebar:
         help="Upload your SendGrid events CSV file to start analyzing email performance"
     )
     
+    # Enforce 1 GB limit client-side for nicer UX (Streamlit still enforces server options)
+    MAX_MB = 1024
     if uploaded_file is not None:
+        size_bytes = getattr(uploaded_file, "size", 0)
+        if size_bytes and size_bytes > MAX_MB * 1024 * 1024:
+            st.error(f"❌ File too large: {(size_bytes/1024/1024):.1f} MB. Limit is {MAX_MB} MB.")
+            st.stop()
         st.success("✅ File uploaded successfully!")
 
 def to_excel(df_):
