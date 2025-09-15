@@ -6,7 +6,6 @@ from plotly.subplots import make_subplots
 import io
 from datetime import datetime, timedelta
 
-
 # Page configuration
 st.set_page_config(
     page_title="SendGrid Analytics Dashboard",
@@ -61,7 +60,7 @@ with st.sidebar:
         help="Upload your SendGrid events CSV file to start analyzing email performance"
     )
     
-    # Enforce 1 GB limit client-side for nicer UX (Streamlit still enforces server options)
+    # Client-side size guard (nice UX; real limit is set in config.toml)
     MAX_MB = 1024
     if uploaded_file is not None:
         size_bytes = getattr(uploaded_file, "size", 0)
@@ -158,14 +157,32 @@ def display_metric_cards(processed, delivered, opened, bounced):
 if uploaded_file is not None:
     # Load and process data
     with st.spinner("🔄 Processing your data..."):
-        df = pd.read_csv(uploaded_file)
+        # Chunking for jumbo CSVs (friendlier to RAM)
+        CHUNK_THRESHOLD_MB = 200
+        CHUNK_SIZE = 200_000
+
+        size_bytes = getattr(uploaded_file, "size", None)
+        use_chunks = size_bytes is not None and size_bytes > CHUNK_THRESHOLD_MB * 1024 * 1024
+
+        if use_chunks:
+            df_iter = pd.read_csv(uploaded_file, chunksize=CHUNK_SIZE)
+            df = pd.concat(df_iter, ignore_index=True)
+        else:
+            df = pd.read_csv(uploaded_file)
+
+        # Clean column names
         df.columns = df.columns.str.strip()
 
         # Data validation
         required_columns = ["event", "message_id", "processed"]
-        if not all(col in df.columns for col in required_columns):
-            st.error(f"❌ Missing required columns: {required_columns}")
+        missing = [col for col in required_columns if col not in df.columns]
+        if missing:
+            st.error(f"❌ Missing required columns: {missing}")
             st.stop()
+
+        # Ensure optional columns exist
+        if "subject" not in df.columns:
+            df["subject"] = None
 
         # Keep only relevant events
         valid_events = ["processed", "delivered", "open", "bounce"]
@@ -181,11 +198,16 @@ if uploaded_file is not None:
         df = df[df["message_id"].isin(processed_ids)]
 
         # Remove duplicates
-        df["unique_event"] = df["message_id"].astype(str) + "_" + df["event"] + "_" + df["processed_date"].astype(str)
+        df["unique_event"] = (
+            df["message_id"].astype(str) + "_" + df["event"] + "_" + df["processed_date"].astype(str)
+        )
         df = df.drop_duplicates(subset=["unique_event"])
 
         # Get subjects
-        processed_df = df[df["event"] == "processed"][["message_id", "subject"]].drop_duplicates(subset=["message_id"])
+        processed_df = (
+            df[df["event"] == "processed"][["message_id", "subject"]]
+            .drop_duplicates(subset=["message_id"])
+        )
         df = df.merge(processed_df, on="message_id", how="left", suffixes=('', '_processed'))
         df["subject"] = df["subject_processed"]
 
@@ -239,8 +261,11 @@ if uploaded_file is not None:
         df_filtered = df_filtered[mask]
     
     # Subject filter
-    df_filtered = df_filtered[df_filtered["subject"].isin(selected_subjects)]
-    
+    if selected_subjects:
+        df_filtered = df_filtered[df_filtered["subject"].isin(selected_subjects)]
+    else:
+        df_filtered = df_filtered[df_filtered["subject"].isna()]  # if none selected, show none
+
     # Email exclusion filter
     if excluded_emails:
         df_filtered = df_filtered[~df_filtered["email"].isin(excluded_emails)]
@@ -288,7 +313,6 @@ if uploaded_file is not None:
                 
                 st.subheader("📋 Performance Rates")
                 
-                # Create gauge-like metrics
                 rate_data = {
                     "Metric": ["Delivery Rate", "Open Rate", "Bounce Rate"],
                     "Rate (%)": [delivery_rate, open_rate, bounce_rate],
