@@ -15,10 +15,6 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# === 1 GB upload/message limits ===
-st.set_option("server.maxUploadSize", 1024)   # MB → 1 GB
-st.set_option("server.maxMessageSize", 1024)  # bump message size too
-
 # Custom CSS for better styling
 st.markdown("""
 <style>
