@@ -61,11 +61,11 @@ with st.sidebar:
     )
     
     # Client-side size guard (nice UX; real limit is set in config.toml)
-    MAX_MB = 1024
+    MAX_MB = 500
     if uploaded_file is not None:
         size_bytes = getattr(uploaded_file, "size", 0)
-        if size_bytes and size_bytes > MAX_MB * 1024 * 1024:
-            st.error(f"❌ File too large: {(size_bytes/1024/1024):.1f} MB. Limit is {MAX_MB} MB.")
+        if size_bytes and size_bytes > MAX_MB * 500 * 500:
+            st.error(f"❌ File too large: {(size_bytes/500/500):.1f} MB. Limit is {MAX_MB} MB.")
             st.stop()
         st.success("✅ File uploaded successfully!")
 
@@ -162,7 +162,7 @@ if uploaded_file is not None:
         CHUNK_SIZE = 200_000
 
         size_bytes = getattr(uploaded_file, "size", None)
-        use_chunks = size_bytes is not None and size_bytes > CHUNK_THRESHOLD_MB * 1024 * 1024
+        use_chunks = size_bytes is not None and size_bytes > CHUNK_THRESHOLD_MB * 500 * 500
 
         if use_chunks:
             df_iter = pd.read_csv(uploaded_file, chunksize=CHUNK_SIZE)
