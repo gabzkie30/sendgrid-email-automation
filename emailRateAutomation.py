@@ -14,10 +14,6 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# === 1 GB upload/message limits ===
-st.set_option("server.maxUploadSize", 1024)   # MB → 1 GB
-st.set_option("server.maxMessageSize", 1024)  # bump message size too
-
 # Custom CSS for better styling
 st.markdown("""
 <style>
@@ -64,7 +60,7 @@ with st.sidebar:
         help="Upload your SendGrid events CSV file to start analyzing email performance"
     )
     
-    # Enforce 1 GB limit client-side for nicer UX (Streamlit still enforces server options)
+    # Client-side size guard (nice UX; real limit is set in config.toml)
     MAX_MB = 1024
     if uploaded_file is not None:
         size_bytes = getattr(uploaded_file, "size", 0)
@@ -161,9 +157,9 @@ def display_metric_cards(processed, delivered, opened, bounced):
 if uploaded_file is not None:
     # Load and process data
     with st.spinner("🔄 Processing your data..."):
-        # Choose chunking for very large files to be friendlier to RAM
-        CHUNK_THRESHOLD_MB = 200  # start chunking for really big files
-        CHUNK_SIZE = 200_000      # rows per chunk (tune as needed)
+        # Chunking for jumbo CSVs (friendlier to RAM)
+        CHUNK_THRESHOLD_MB = 200
+        CHUNK_SIZE = 200_000
 
         size_bytes = getattr(uploaded_file, "size", None)
         use_chunks = size_bytes is not None and size_bytes > CHUNK_THRESHOLD_MB * 1024 * 1024
@@ -317,7 +313,6 @@ if uploaded_file is not None:
                 
                 st.subheader("📋 Performance Rates")
                 
-                # Create gauge-like metrics
                 rate_data = {
                     "Metric": ["Delivery Rate", "Open Rate", "Bounce Rate"],
                     "Rate (%)": [delivery_rate, open_rate, bounce_rate],
